@@ -1,0 +1,68 @@
+#root {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 400px;
+  background: #f4f4f4;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #ddd;
+}
+
+.sidebar textarea {
+  flex: 1;
+  margin-bottom: 10px;
+  font-family: monospace;
+  font-size: 14px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  resize: none;
+}
+
+.sidebar button {
+  padding: 10px;
+  background: #007bff;
+  color: white;
+  border: none;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.sidebar button:hover {
+  background: #0056b3;
+}
+
+.graph-container {
+  flex: 1;
+  position: relative;
+}
+
+.react-flow__node {
+  padding: 10px;
+  border-radius: 5px;
+  border: 1px solid #222;
+  background: white;
+  font-size: 12px;
+  text-align: center;
+}
+
+.react-flow__node-final_column {
+  background: #ffcccc;
+}
+
+.react-flow__node-source_column {
+  background: #ccffcc;
+}
