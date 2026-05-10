@@ -3,15 +3,20 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main, master]
+  pull_request:
+    branches: [main, master]
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     
     steps:
       - name: Checkout code
@@ -35,10 +40,13 @@ jobs:
           VITE_USE_PYODIDE: "true"
         run: npm run build
 
-      - name: Deploy to GitHub Pages
-        uses: JamesIves/github-pages-deploy-action@v4
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          branch: gh-pages
-          folder: frontend/dist
-          token: ${{ secrets.GITHUB_TOKEN }}
+          path: './frontend/dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
 
