@@ -17,8 +17,8 @@ import type {
   OnEdgesChange 
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import axios from 'axios';
 import * as dagre from '@dagrejs/dagre';
-import api, { initializePyodideWorker } from './config/api';
 import './index.css';
 
 /**
@@ -189,18 +189,13 @@ function LineageGraph({ sql, loading, onResultLoaded }: any) {
   const { fitView } = useReactFlow();
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
-  const [isReady, setIsReady] = useState(false);
 
   const onNodesChange: OnNodesChange = useCallback((c) => setNodes((nds) => applyNodeChanges(c, nds)), []);
   const onEdgesChange: OnEdgesChange = useCallback((c) => setEdges((eds) => applyEdgeChanges(c, eds)), []);
 
   const handleRun = async () => {
     try {
-      const data = await api.parseSql(sql, 'tsql');
-      if (data.error) {
-        alert(`Error: ${data.error}`);
-        return;
-      }
+      const { data } = await axios.post('http://localhost:8000/api/parse', { sql, dialect: 'tsql' });
       const { nodes: lNodes, edges: lEdges } = getLayoutedElements(data.nodes, data.edges);
       setNodes(lNodes);
       setEdges(lEdges);
@@ -208,35 +203,10 @@ function LineageGraph({ sql, loading, onResultLoaded }: any) {
       // Multi-stage fitting to combat rendering race conditions
       setTimeout(() => fitView({ padding: 0.2, duration: 200 }), 50);
       setTimeout(() => fitView({ padding: 0.2, duration: 200 }), 150);
-    } catch (e) { 
-      alert(`Visualization failed: ${e instanceof Error ? e.message : String(e)}`); 
-    } finally { 
-      onResultLoaded(); 
-    }
+    } catch (e) { alert('Visualization failed.'); } finally { onResultLoaded(); }
   };
 
-  // Initialize Pyodide on mount
-  useEffect(() => {
-    if (api.usePyodide) {
-      initializePyodideWorker()
-        .then(() => {
-          console.log('Pyodide initialized');
-          setIsReady(true);
-        })
-        .catch((error) => {
-          console.error('Failed to initialize Pyodide:', error);
-          alert('Failed to initialize Python engine. Please check your browser console.');
-        });
-    } else {
-      setIsReady(true);
-    }
-  }, []);
-
-  useEffect(() => { 
-    if (loading && isReady) {
-      handleRun(); 
-    }
-  }, [loading, isReady]);
+  useEffect(() => { if (loading) handleRun(); }, [loading]);
 
   return (
     <ReactFlow

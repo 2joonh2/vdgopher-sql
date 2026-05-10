@@ -7,10 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "deploy": "npm run build && npm run preview"
+    "preview": "vite preview"
   },
-  "homepage": "https://{username}.github.io/{repo-name}",
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
     "axios": "^1.16.0",
@@ -28,7 +26,6 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
-    "pyodide": "^0.24.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
     "vite": "^8.0.10"
