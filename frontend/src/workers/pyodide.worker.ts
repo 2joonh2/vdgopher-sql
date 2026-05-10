@@ -2,14 +2,10 @@
  * Pyodide Web Worker for running Python SQL lineage analysis in the browser
  */
 
-interface PyodideInterface {
-  runPythonAsync(code: string): Promise<any>;
-  loadPackage(packages: string[]): Promise<void>;
-}
+import type { PyodideInterface } from 'pyodide';
 
 declare global {
   const loadPyodide: () => Promise<PyodideInterface>;
-  function importScripts(...urls: string[]): void;
 }
 
 let pyodide: PyodideInterface | null = null;
