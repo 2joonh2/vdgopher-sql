@@ -1,0 +1,14 @@
+[build]
+  command = "cd frontend && npm install && npm run build"
+  publish = "frontend/dist"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "20"
+  VITE_BASE_URL = "/"
+  VITE_USE_PYODIDE = "true"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

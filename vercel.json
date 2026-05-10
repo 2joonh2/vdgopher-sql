@@ -1,0 +1,15 @@
+{
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
+  "nodeVersion": "20.x",
+  "env": {
+    "VITE_BASE_URL": "/",
+    "VITE_USE_PYODIDE": "true"
+  },
+  "rewrites": [
+    {
+      "source": "/:path*",
+      "destination": "/index.html"
+    }
+  ]
+}

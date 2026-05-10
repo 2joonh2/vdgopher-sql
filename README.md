@@ -64,11 +64,45 @@ The deployment happens automatically when you push to `main` or `master` branch.
 
 **That's it! No backend configuration needed.**
 
-### Step 3: Alternative Deployment Services
-You can also deploy to:
-- **Netlify**: Connect your GitHub repo, builds automatically
-- **Vercel**: Similar to Netlify
-- **GitHub Pages** (recommended, free and easy)
+---
+
+## 배포 옵션 (권장 순서)
+
+### ⭐ 추천: Netlify (가장 간단함)
+
+`netlify.toml`이 이미 설정되어 있습니다.
+
+**방법 1: 웹 인터페이스**
+1. [netlify.com](https://netlify.com) 접속
+2. "Add new site" → "Import an existing project"
+3. GitHub 연결 → Repository 선택
+4. 설정 자동 감지
+5. Deploy
+
+**방법 2: CLI**
+```bash
+npm install -g netlify-cli
+netlify deploy --prod
+```
+
+### 대안: Vercel
+
+`vercel.json`이 이미 설정되어 있습니다.
+
+```bash
+npm install -g vercel
+vercel --prod
+```
+
+### GitHub Pages (주의 필요)
+
+⚠️ **주의**: 사용자가 `2joonh2.github.io` 블로그를 운영 중이면 겹칠 수 있습니다.
+
+만약 새로운 Repository를 생성했다면:
+1. Settings → Pages
+2. Deploy from a branch
+3. Branch: `gh-pages` / Folder: `/`
+4. Save
 
 ---
 
