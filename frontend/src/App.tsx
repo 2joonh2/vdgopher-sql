@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import ReactFlow, { 
   Background, 
   Controls, 
@@ -243,7 +243,7 @@ function LineageGraph({ sql, loading, onResultLoaded }: any) {
       nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
       nodeTypes={nodeTypes} fitView minZoom={0.01} maxZoom={4}
     >
-      <Background color="#cbd5e1" variant="dots" gap={24} />
+      <Background color="#cbd5e1" variant={'dots' as any} size={1} />
       <Controls style={{ boxShadow: 'none', border: '1px solid #e2e8f0' }} />
     </ReactFlow>
   );
