@@ -1,12 +1,19 @@
-let e=null;async function t(){try{console.log(`Starting Pyodide initialization...`),importScripts(`https://cdn.jsdelivr.net/pyodide/v0.24.0/full/pyodide.js`),e=await loadPyodide(),console.log(`Pyodide loaded`),console.log(`Installing sqlglot...`),await e.loadPackage([`sqlglot`]),console.log(`sqlglot installed`),console.log(`Loading Python worker script...`),await e.runPythonAsync(`
+importScripts("https://cdn.jsdelivr.net/pyodide/v0.24.0/full/pyodide.js");
+
+let pyodideReadyPromise;
+
+async function loadPyodideAndPackages() {
+  self.pyodide = await loadPyodide();
+  await self.pyodide.loadPackage(["sqlglot"]);
+  
+  await self.pyodide.runPythonAsync(`
 import sqlglot
 from sqlglot.optimizer.qualify import qualify
 from sqlglot.optimizer.scope import build_scope, Scope
-from typing import Dict, Any, Optional
 import uuid
 import json
 
-def build_lineage_graph(sql: str, dialect: str = None) -> Dict[str, Any]:
+def build_lineage_graph(sql: str, dialect: str = None):
     try:
         nodes = []
         edges = []
@@ -14,22 +21,22 @@ def build_lineage_graph(sql: str, dialect: str = None) -> Dict[str, Any]:
         column_node_map = {}
 
         def add_group_node(table_name: str):
-            clean_name = table_name.replace('"', '').replace(\`\`, '').upper()
+            clean_name = table_name.replace('"', '').replace('\`', '').upper()
             group_id = f"group_{clean_name.lower()}"
             if group_id not in node_ids:
                 nodes.append({
                     "id": group_id,
                     "type": "group",
                     "data": {"label": clean_name, "type": "table_group"},
-                    "style": {"zIndex": -1},
+                    "style": { "zIndex": -1 },
                     "position": {"x": 0, "y": 0}
                 })
                 node_ids.add(group_id)
             return group_id
 
         def get_or_create_node(table_name: str, col_name: str, node_type: str, agg_info: str = ""):
-            t_name = table_name.replace('"', '').replace(\`\`, '').upper() if table_name else "RESULT"
-            c_name = col_name.replace('"', '').replace(\`\`, '').upper()
+            t_name = table_name.replace('"', '').replace('\`', '').upper() if table_name else "RESULT"
+            c_name = col_name.replace('"', '').replace('\`', '').upper()
             
             clean_table = t_name.lower()
             clean_col = c_name.lower()
@@ -56,7 +63,7 @@ def build_lineage_graph(sql: str, dialect: str = None) -> Dict[str, Any]:
                 "id": node_id,
                 "type": node_type,
                 "data": {
-                    "label": f"{c_name} {agg_info}".strip(),
+                    "label": f"{c_name} {agg_info}".strip(), 
                     "type": node_type,
                     "table": t_name
                 },
@@ -69,8 +76,7 @@ def build_lineage_graph(sql: str, dialect: str = None) -> Dict[str, Any]:
             return node_id
 
         def add_edge(source_id: str, target_id: str):
-            if not source_id or not target_id or source_id == target_id:
-                return
+            if not source_id or not target_id or source_id == target_id: return
             edge_id = f"e-{source_id}-{target_id}"
             if not any(e["id"] == edge_id for e in edges):
                 edges.append({
@@ -88,8 +94,7 @@ def build_lineage_graph(sql: str, dialect: str = None) -> Dict[str, Any]:
         processed_scopes = set()
 
         def process_scope(scope: Scope):
-            if not scope or id(scope) in processed_scopes:
-                return
+            if not scope or id(scope) in processed_scopes: return
             processed_scopes.add(id(scope))
 
             for _, source in scope.sources.items():
@@ -106,14 +111,9 @@ def build_lineage_graph(sql: str, dialect: str = None) -> Dict[str, Any]:
             if isinstance(scope.expression, sqlglot.exp.Select):
                 for exp in scope.expression.expressions:
                     alias = exp.alias if isinstance(exp, sqlglot.exp.Alias) else exp.name
-                    if not alias:
-                        continue
+                    if not alias: continue
                     
-                    node_id = get_or_create_node(
-                        scope_name,
-                        alias,
-                        "final_column" if scope_name == "RESULT" else "source_column"
-                    )
+                    node_id = get_or_create_node(scope_name, alias, "final_column" if scope_name == "RESULT" else "source_column")
                     
                     for column in exp.find_all(sqlglot.exp.Column):
                         source_alias = column.table
@@ -122,54 +122,72 @@ def build_lineage_graph(sql: str, dialect: str = None) -> Dict[str, Any]:
                         if actual_source:
                             source_table_name = ""
                             if isinstance(actual_source, Scope):
-                                source_table_name = (
-                                    actual_source.expression.parent.alias
-                                    if hasattr(actual_source.expression.parent, 'alias')
-                                    else "SUBQUERY"
-                                )
+                                source_table_name = actual_source.expression.parent.alias if hasattr(actual_source.expression.parent, 'alias') else "SUBQUERY"
                             elif isinstance(actual_source, sqlglot.exp.Table):
                                 source_table_name = actual_source.name
                             
                             if source_table_name:
-                                src_id = get_or_create_node(
-                                    source_table_name,
-                                    column.name,
-                                    "data_source"
-                                )
+                                src_id = get_or_create_node(source_table_name, column.name, "data_source")
                                 add_edge(src_id, node_id)
+
+            elif isinstance(scope.expression, (sqlglot.exp.Union, sqlglot.exp.Except, sqlglot.exp.Intersect)):
+                first_select = scope.expression.find(sqlglot.exp.Select)
+                if not first_select: return
+                
+                output_ids = []
+                for exp in first_select.expressions:
+                    alias = exp.alias if isinstance(exp, sqlglot.exp.Alias) else exp.name
+                    if not alias: continue
+                    node_id = get_or_create_node(scope_name, alias, "source_column")
+                    output_ids.append(node_id)
+                
+                for _, source_scope in scope.sources.items():
+                    if isinstance(source_scope, Scope):
+                        source_select = source_scope.expression if isinstance(source_scope.expression, sqlglot.exp.Select) else source_scope.expression.find(sqlglot.exp.Select)
+                        if not source_select: continue
+                        
+                        source_table = source_scope.expression.parent.alias if hasattr(source_scope.expression.parent, 'alias') else "SUBQUERY"
+                        
+                        for idx, s_exp in enumerate(source_select.expressions):
+                            s_alias = s_exp.alias if isinstance(s_exp, sqlglot.exp.Alias) else s_exp.name
+                            if s_alias and idx < len(output_ids):
+                                src_id = get_or_create_node(source_table, s_alias, "source_column")
+                                add_edge(src_id, output_ids[idx])
 
         for main_expr in expressions:
             if isinstance(main_expr, (sqlglot.exp.Select, sqlglot.exp.Union)):
-                try:
-                    qualified = qualify(
-                        main_expr,
-                        dialect=dialect,
-                        validate_qualify_columns=False
-                    )
-                except Exception:
-                    qualified = main_expr
+                try: qualified = qualify(main_expr, dialect=dialect, validate_qualify_columns=False)
+                except Exception: qualified = main_expr
                 root_scope = build_scope(qualified)
-                if root_scope:
-                    process_scope(root_scope)
+                if root_scope: process_scope(root_scope)
 
-        return {"nodes": nodes, "edges": edges}
-    
+        return json.dumps({"nodes": nodes, "edges": edges})
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return {
-            "error": str(e),
-            "nodes": [],
-            "edges": []
-        }
+        return json.dumps({"error": str(e), "nodes": [], "edges": []})
 
 def process_sql(sql_text: str, dialect: str = None):
     return build_lineage_graph(sql_text, dialect)
-`),console.log(`Python worker script loaded`),self.postMessage({type:`ready`})}catch(e){console.error(`Pyodide initialization error:`,e),self.postMessage({type:`error`,error:String(e)})}}self.onmessage=async n=>{let{type:r,data:i}=n.data;if(r===`init`){await t();return}if(r===`parse`&&e)try{let{sql:t,dialect:n}=i;await e.runPythonAsync(`
-_sql = """${t.replace(/"""/g,`\\"\\"\\"`)}"""
-_dialect = ${n?`"${n}"`:`None`}
-`);let r=await e.runPythonAsync(`
-import json
-result = process_sql(_sql, _dialect)
-json.dumps(result)
-`);self.postMessage({type:`success`,data:JSON.parse(r)})}catch(e){console.error(`SQL parsing error:`,e),self.postMessage({type:`error`,error:String(e)})}},t();
+  `);
+}
+
+pyodideReadyPromise = loadPyodideAndPackages();
+
+self.onmessage = async (event) => {
+  const { id, sql, dialect } = event.data;
+  try {
+    await pyodideReadyPromise;
+    self.pyodide.globals.set("sql_text", sql);
+    self.pyodide.globals.set("sql_dialect", dialect || "tsql");
+    const resultJson = await self.pyodide.runPythonAsync("process_sql(sql_text, sql_dialect)");
+    const result = JSON.parse(resultJson);
+    if (result.error) {
+      self.postMessage({ id, error: result.error });
+    } else {
+      self.postMessage({ id, result });
+    }
+  } catch (error) {
+    self.postMessage({ id, error: error.message });
+  }
+};
