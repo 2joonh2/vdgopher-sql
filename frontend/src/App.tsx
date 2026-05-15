@@ -8,7 +8,8 @@ import ReactFlow, {
   Handle,
   Position,
   useReactFlow,
-  ReactFlowProvider
+  ReactFlowProvider,
+  BackgroundVariant
 } from 'reactflow';
 import type { 
   Node, 
@@ -300,7 +301,7 @@ function LineageGraph({ sql, loading, onResultLoaded }: any) {
       onNodeClick={onNodeClick} onPaneClick={onPaneClick}
       nodeTypes={nodeTypes} fitView minZoom={0.01} maxZoom={4}
     >
-      <Background color="#cbd5e1" variant="dots" gap={24} />
+      <Background color="#cbd5e1" variant={BackgroundVariant.Dots} gap={24} />
       <Controls style={{ boxShadow: 'none', border: '1px solid #e2e8f0' }} />
     </ReactFlow>
   );
@@ -317,7 +318,7 @@ export default function App() {
         <aside style={{ width: '460px', borderRight: '1px solid #e2e8f0', background: '#ffffff', display: 'flex', flexDirection: 'column', zIndex: 100, flexShrink: 0 }}>
           <div style={{ padding: '40px', flex: 1, display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '40px' }}>
-              <img src="/favicon.png" style={{ width: '32px', height: '32px', objectFit: 'contain' }} alt="Logo" />
+              <img src={`${import.meta.env.BASE_URL}favicon.png`} style={{ width: '32px', height: '32px', objectFit: 'contain' }} alt="Logo" />
               <h1 style={{ fontSize: '20px', fontWeight: '900', color: '#1e293b', margin: 0, letterSpacing: '-0.02em' }}>VDGOPHER for SQL</h1>
             </div>
             

@@ -1,10 +1,12 @@
-importScripts("https://cdn.jsdelivr.net/pyodide/v0.24.0/full/pyodide.js");
+importScripts("https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js");
 
 let pyodideReadyPromise;
 
 async function loadPyodideAndPackages() {
   self.pyodide = await loadPyodide();
-  await self.pyodide.loadPackage(["sqlglot"]);
+  await self.pyodide.loadPackage("micropip");
+  const micropip = self.pyodide.pyimport("micropip");
+  await micropip.install("sqlglot");
   
   await self.pyodide.runPythonAsync(`
 import sqlglot
