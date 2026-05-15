@@ -17,9 +17,25 @@ import type {
   OnEdgesChange 
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import axios from 'axios';
 import * as dagre from '@dagrejs/dagre';
 import './index.css';
+
+const worker = new Worker(`${import.meta.env.BASE_URL}pyodide-worker.js`);
+
+const parseSqlWithWorker = (sql: string, dialect: string): Promise<any> => {
+  return new Promise((resolve, reject) => {
+    const id = Math.random().toString(36).substring(7);
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.id === id) {
+        worker.removeEventListener('message', handleMessage);
+        if (event.data.error) reject(new Error(event.data.error));
+        else resolve(event.data.result);
+      }
+    };
+    worker.addEventListener('message', handleMessage);
+    worker.postMessage({ id, sql, dialect });
+  });
+};
 
 /**
  * [GEN-6: Absolute Symmetry & Viewport Precision]
@@ -38,16 +54,16 @@ const NODE_HEIGHT = 46;
 const TableGroupNode = ({ data }: any) => (
   <div style={{ 
     width: '100%', height: '100%', 
-    backgroundColor: '#ffffff', border: '1.5px solid #e2e8f0', borderRadius: '16px',
-    overflow: 'hidden', boxShadow: '0 10px 30px -5px rgba(0, 0, 0, 0.05)',
-    display: 'flex', flexDirection: 'column'
+    backgroundColor: '#ffffff', border: data.highlighted ? '2px solid #3b82f6' : '1.5px solid #e2e8f0', borderRadius: '16px',
+    overflow: 'hidden', boxShadow: data.highlighted ? '0 0 10px rgba(59, 130, 246, 0.5)' : '0 10px 30px -5px rgba(0, 0, 0, 0.05)',
+    display: 'flex', flexDirection: 'column', transition: 'all 0.2s ease'
   }}>
     <div style={{ 
-      padding: '10px 16px', backgroundColor: '#f8fafc', borderBottom: '1.2px solid #e2e8f0',
-      display: 'flex', alignItems: 'center', gap: '8px'
+      padding: '10px 16px', backgroundColor: data.highlighted ? '#eff6ff' : '#f8fafc', borderBottom: data.highlighted ? '1.2px solid #3b82f6' : '1.2px solid #e2e8f0',
+      display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s ease'
     }}>
-      <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#6366f1' }} />
-      <span style={{ fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+      <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: data.highlighted ? '#3b82f6' : '#6366f1', transition: 'all 0.2s ease' }} />
+      <span style={{ fontSize: '11px', fontWeight: '800', color: data.highlighted ? '#1e3a8a' : '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', transition: 'all 0.2s ease' }}>
         {data.label}
       </span>
     </div>
@@ -66,15 +82,15 @@ const ColumnNode = ({ data }: any) => {
   return (
     <div style={{ 
       width: `${NODE_WIDTH}px`, height: `${NODE_HEIGHT}px`, borderRadius: '10px', backgroundColor: '#ffffff',
-      border: '1.2px solid #e2e8f0', display: 'flex', alignItems: 'center',
-      padding: '0 14px', gap: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-      position: 'relative'
+      border: data.highlighted ? '2px solid #3b82f6' : '1.2px solid #e2e8f0', display: 'flex', alignItems: 'center',
+      padding: '0 14px', gap: '10px', boxShadow: data.highlighted ? '0 0 10px rgba(59, 130, 246, 0.5)' : '0 1px 3px rgba(0,0,0,0.02)',
+      position: 'relative', transition: 'all 0.2s ease'
     }}>
-      <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: theme.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>
+      <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: theme.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', transition: 'all 0.2s ease' }}>
         {theme.icon}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '12px', fontWeight: '600', color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ fontSize: '12px', fontWeight: '600', color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', transition: 'all 0.2s ease' }}>
           {data.label}
         </div>
       </div>
@@ -176,7 +192,7 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
     nodes: layoutedNodes, 
     edges: edges.map(e => ({
       ...e, type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed, color: '#cbd5e1' },
-      style: { strokeWidth: 1.5, stroke: '#cbd5e1' }, animated: true
+      style: { strokeWidth: 1.5, stroke: '#cbd5e1' }, animated: false
     }))
   };
 };
@@ -195,7 +211,7 @@ function LineageGraph({ sql, loading, onResultLoaded }: any) {
 
   const handleRun = async () => {
     try {
-      const { data } = await axios.post('http://localhost:8000/api/parse', { sql, dialect: 'tsql' });
+      const data = await parseSqlWithWorker(sql, 'tsql');
       const { nodes: lNodes, edges: lEdges } = getLayoutedElements(data.nodes, data.edges);
       setNodes(lNodes);
       setEdges(lEdges);
@@ -208,9 +224,80 @@ function LineageGraph({ sql, loading, onResultLoaded }: any) {
 
   useEffect(() => { if (loading) handleRun(); }, [loading]);
 
+  const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    const up = new Set<string>();
+    const down = new Set<string>();
+    
+    const findUp = (nId: string) => {
+      edges.forEach(e => {
+        if (e.target === nId && !up.has(e.source)) {
+          up.add(e.source);
+          findUp(e.source);
+        }
+      });
+    };
+    
+    const findDown = (nId: string) => {
+      edges.forEach(e => {
+        if (e.source === nId && !down.has(e.target)) {
+          down.add(e.target);
+          findDown(e.target);
+        }
+      });
+    };
+    
+    findUp(node.id);
+    findDown(node.id);
+    
+    const highlightIds = new Set([node.id, ...up, ...down]);
+
+    setNodes(nds => {
+      const parentIds = new Set<string>();
+      nds.forEach(n => {
+        if (highlightIds.has(n.id) && n.parentNode) {
+          parentIds.add(n.parentNode);
+        }
+      });
+      return nds.map(n => ({
+        ...n,
+        data: { ...n.data, highlighted: highlightIds.has(n.id) },
+        style: { ...n.style, opacity: (highlightIds.has(n.id) || parentIds.has(n.id)) ? 1 : 0.2 }
+      }));
+    });
+
+    setEdges(eds => eds.map(e => ({
+      ...e,
+      style: {
+        ...e.style,
+        stroke: highlightIds.has(e.source) && highlightIds.has(e.target) ? '#3b82f6' : '#cbd5e1',
+        strokeWidth: highlightIds.has(e.source) && highlightIds.has(e.target) ? 2.5 : 1.5,
+      },
+      markerEnd: { 
+        type: MarkerType.ArrowClosed, 
+        color: highlightIds.has(e.source) && highlightIds.has(e.target) ? '#3b82f6' : '#cbd5e1' 
+      },
+      zIndex: highlightIds.has(e.source) && highlightIds.has(e.target) ? 10 : 0
+    })));
+  }, [edges]);
+
+  const onPaneClick = useCallback(() => {
+    setNodes(nds => nds.map(n => ({
+      ...n,
+      data: { ...n.data, highlighted: false },
+      style: { ...n.style, opacity: 1 }
+    })));
+    setEdges(eds => eds.map(e => ({
+      ...e,
+      style: { ...e.style, stroke: '#cbd5e1', strokeWidth: 1.5 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: '#cbd5e1' },
+      zIndex: 0
+    })));
+  }, []);
+
   return (
     <ReactFlow
       nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
+      onNodeClick={onNodeClick} onPaneClick={onPaneClick}
       nodeTypes={nodeTypes} fitView minZoom={0.01} maxZoom={4}
     >
       <Background color="#cbd5e1" variant="dots" gap={24} />
